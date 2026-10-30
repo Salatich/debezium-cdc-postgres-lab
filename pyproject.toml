@@ -1,0 +1,21 @@
+[project]
+name = "debezium-cdc-postgres-lab"
+version = "0.1.0"
+description = "Production-grade PostgreSQL Change Data Capture (CDC) with Debezium, Kafka, and Confluent Schema Registry"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "confluent-kafka>=2.6.0",
+    "fastavro>=1.9.0",
+    "psycopg[binary]>=3.2.0",
+    "requests>=2.32.0",
+    "rich>=13.9.0",
+    "typer>=0.12.0",
+]
+
+[project.scripts]
+cdc = "debezium_cdc_postgres_lab.cli:app"
+
+[build-system]
+requires = ["uv_build>=0.13.5,<0.14.0"]
+build-backend = "uv_build"
