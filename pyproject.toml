@@ -5,7 +5,7 @@ description = "Production-grade PostgreSQL Change Data Capture (CDC) with Debezi
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "confluent-kafka>=2.6.0",
+    "confluent-kafka[avro,schema-registry]>=2.6.0",
     "faker>=33.0.0",
     "fastavro>=1.9.0",
     "psycopg[binary]>=3.2.0",
@@ -16,8 +16,13 @@ dependencies = [
     "typer>=0.12.0",
 ]
 
-[tool.uv]
-package = false
+
+[project.scripts]
+cdc = "debezium_cdc_postgres_lab.cli:app"
+
+[build-system]
+requires = ["uv_build>=0.13.5,<0.14.0"]
+build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
@@ -31,6 +36,7 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
+ignore = ["E501"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
