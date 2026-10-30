@@ -1,9 +1,10 @@
 """Infrastructure connectivity and sanity check script for Debezium CDC Lab."""
 
+import json
 import os
 import sys
 import urllib.request
-import json
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -21,9 +22,12 @@ KAFKA_UI_URL = os.getenv("KAFKA_UI_URL", "http://localhost:8080")
 
 
 def check_postgres() -> bool:
-    print(f"[*] Checking PostgreSQL connectivity on {POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}...")
+    print(
+        f"[*] Checking PostgreSQL connectivity on {POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}..."
+    )
     try:
         import psycopg
+
         conn_str = f"host={POSTGRES_HOST} port={POSTGRES_PORT} dbname={POSTGRES_DB} user={POSTGRES_USER} password={POSTGRES_PASSWORD} connect_timeout=3"
         with psycopg.connect(conn_str) as conn:
             with conn.cursor() as cur:
@@ -33,7 +37,9 @@ def check_postgres() -> bool:
                 if wal_level != "logical":
                     print("    [!] WARNING: wal_level is not 'logical'. CDC replication will fail!")
                     return False
-                cur.execute("SELECT count(*) FROM pg_publication WHERE pubname = 'dbz_publication';")
+                cur.execute(
+                    "SELECT count(*) FROM pg_publication WHERE pubname = 'dbz_publication';"
+                )
                 has_pub = cur.fetchone()[0] > 0
                 print(f"    [+] Publication 'dbz_publication' configured: {has_pub}")
         return True
@@ -46,6 +52,7 @@ def check_kafka() -> bool:
     print(f"[*] Checking Kafka broker on {KAFKA_BOOTSTRAP}...")
     try:
         from confluent_kafka.admin import AdminClient
+
         admin = AdminClient({"bootstrap.servers": KAFKA_BOOTSTRAP, "socket.timeout.ms": 3000})
         metadata = admin.list_topics(timeout=3.0)
         print(f"    [+] Kafka is accessible! Existing topics: {len(metadata.topics)}")
@@ -76,7 +83,10 @@ def check_kafka_connect() -> bool:
         with urllib.request.urlopen(req, timeout=3) as resp:
             if resp.status == 200:
                 plugins = json.loads(resp.read().decode())
-                has_pg = any(p.get("class") == "io.debezium.connector.postgresql.PostgresConnector" for p in plugins)
+                has_pg = any(
+                    p.get("class") == "io.debezium.connector.postgresql.PostgresConnector"
+                    for p in plugins
+                )
                 print(f"    [+] Kafka Connect online! Debezium Postgres plugin detected: {has_pg}")
                 return True
     except Exception as e:
@@ -101,7 +111,7 @@ def main():
     print("=" * 60)
     print("🔍 DEBEZIUM CDC INFRASTRUCTURE HEALTH CHECK")
     print("=" * 60)
-    
+
     results = {
         "PostgreSQL (wal_level=logical)": check_postgres(),
         "Kafka (KRaft)": check_kafka(),
@@ -109,7 +119,7 @@ def main():
         "Kafka Connect (Debezium)": check_kafka_connect(),
         "Kafka UI": check_kafka_ui(),
     }
-    
+
     print("-" * 60)
     all_ok = all(results.values())
     for svc, ok in results.items():
