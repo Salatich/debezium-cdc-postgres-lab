@@ -5,7 +5,6 @@ import random
 import time
 import uuid
 from typing import Any, Dict, List, Optional
-
 import psycopg
 from faker import Faker
 
@@ -23,6 +22,22 @@ def get_connection():
         password=settings.postgres_password,
         autocommit=True,
     )
+
+
+def insert_customer(first_name: str, last_name: str, email: str, status: str = "ACTIVE") -> Dict[str, Any]:
+    """Insert a specific customer into PostgreSQL."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO customers (first_name, last_name, email, status)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id, first_name, last_name, email, status;
+                """,
+                (first_name, last_name, email, status),
+            )
+            r = cur.fetchone()
+            return {"id": r[0], "first_name": r[1], "last_name": r[2], "email": r[3], "status": r[4]}
 
 
 def seed_records(num_customers: int = 5, num_orders: int = 10) -> Dict[str, int]:

@@ -1,7 +1,7 @@
 """CLI runner for Debezium PostgreSQL CDC lab scenarios and operational experiments."""
 
+import random
 from typing import Optional
-
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -13,6 +13,7 @@ from debezium_cdc_postgres_lab.db import (
     alter_schema_drop_column,
     delete_customer,
     get_replication_slot_metrics,
+    insert_customer,
     seed_records,
     send_signaling_snapshot,
     stream_traffic_generator,
@@ -89,6 +90,22 @@ def connector_delete() -> None:
             console.print("[yellow]Connector not found.[/yellow]")
     except Exception as e:
         console.print(f"[bold red]Delete failed:[/bold red] {e}")
+
+
+@app.command("add-customer")
+def add_customer(
+    first_name: str = typer.Option("David", "--first-name", "-f", help="Customer first name"),
+    last_name: str = typer.Option("Miller", "--last-name", "-l", help="Customer last name"),
+    email: Optional[str] = typer.Option(None, "--email", "-e", help="Customer email (auto-generated if omitted)"),
+    status: str = typer.Option("ACTIVE", "--status", "-s", help="Customer status"),
+) -> None:
+    """Insert a specific customer record into PostgreSQL to trigger an INSERT ('c') event."""
+    if not email:
+        email = f"{first_name.lower()}.{last_name.lower()}.{random.randint(100, 999)}@example.com"
+    res = insert_customer(first_name, last_name, email, status)
+    console.print(
+        f"[bold green]Customer added successfully![/bold green] ID={res['id']}, Name={res['first_name']} {res['last_name']}, Email={res['email']}, Status={res['status']}"
+    )
 
 
 @app.command("seed")
