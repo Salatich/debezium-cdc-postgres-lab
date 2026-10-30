@@ -1,6 +1,8 @@
 """Database helper operations for DML generation, schema evolution, and WAL slot inspection."""
 
 import json
+import random
+import time
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -38,12 +40,7 @@ def seed_records(num_customers: int = 5, num_orders: int = 10) -> Dict[str, int]
                     VALUES (%s, %s, %s, %s)
                     RETURNING id;
                     """,
-                    (
-                        first_name,
-                        last_name,
-                        email,
-                        fake.random_element(["ACTIVE", "PENDING", "PREMIUM"]),
-                    ),
+                    (first_name, last_name, email, fake.random_element(["ACTIVE", "PENDING", "PREMIUM"])),
                 )
                 customer_ids.append(cur.fetchone()[0])
 
@@ -52,10 +49,7 @@ def seed_records(num_customers: int = 5, num_orders: int = 10) -> Dict[str, int]
                 for _ in range(num_orders):
                     c_id = fake.random_element(customer_ids)
                     status = fake.random_element(["PROCESSING", "SHIPPED", "DELIVERED"])
-                    amount = round(
-                        fake.pyfloat(left_digits=3, right_digits=2, positive=True, min_value=10.0),
-                        2,
-                    )
+                    amount = round(fake.pyfloat(left_digits=3, right_digits=2, positive=True, min_value=10.0), 2)
                     cur.execute(
                         """
                         INSERT INTO orders (customer_id, order_status, total_amount)
@@ -110,18 +104,14 @@ def delete_customer(customer_id: Optional[int] = None) -> Optional[Dict[str, Any
     with get_connection() as conn:
         with conn.cursor() as cur:
             if customer_id is None:
-                cur.execute(
-                    "SELECT id, first_name, last_name FROM customers ORDER BY id DESC LIMIT 1;"
-                )
+                cur.execute("SELECT id, first_name, last_name FROM customers ORDER BY id DESC LIMIT 1;")
                 row = cur.fetchone()
                 if not row:
                     return None
                 customer_id = row[0]
                 name = f"{row[1]} {row[2]}"
             else:
-                cur.execute(
-                    "SELECT first_name, last_name FROM customers WHERE id = %s;", (customer_id,)
-                )
+                cur.execute("SELECT first_name, last_name FROM customers WHERE id = %s;", (customer_id,))
                 row = cur.fetchone()
                 name = f"{row[0]} {row[1]}" if row else "Unknown"
 
@@ -191,3 +181,45 @@ def alter_schema_drop_column() -> str:
                 """
             )
     return "Dropped column 'loyalty_tier' from customers."
+
+
+def stream_traffic_generator(rate_per_sec: float = 2.0, max_events: Optional[int] = None):
+    """Continuously generate randomized database mutations to simulate real-world production traffic."""
+    delay = 1.0 / max(0.1, rate_per_sec)
+    events_sent = 0
+
+    while max_events is None or events_sent < max_events:
+        choice = random.random()
+        if choice < 0.65:
+            # Create an order for a random customer
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT id FROM customers ORDER BY RANDOM() LIMIT 1;")
+                    r = cur.fetchone()
+                    if r:
+                        c_id = r[0]
+                        status = random.choice(["PROCESSING", "SHIPPED", "COMPLETED"])
+                        amount = round(random.uniform(15.0, 450.0), 2)
+                        cur.execute(
+                            "INSERT INTO orders (customer_id, order_status, total_amount) VALUES (%s, %s, %s) RETURNING id;",
+                            (c_id, status, amount),
+                        )
+                        order_id = cur.fetchone()[0]
+                        yield f"Created Order #{order_id} (Customer #{c_id}, ${amount}, {status})"
+        elif choice < 0.85:
+            # Update customer status
+            res = update_customer_status()
+            if res:
+                yield f"Updated Customer #{res['id']} ({res['name']}) -> {res['new_status']}"
+        elif choice < 0.95:
+            # Insert customer
+            res = seed_records(num_customers=1, num_orders=0)
+            yield "Added 1 new Customer"
+        else:
+            # Delete customer
+            res = delete_customer()
+            if res:
+                yield f"Deleted Customer #{res['deleted_id']} ({res['name']})"
+
+        events_sent += 1
+        time.sleep(delay)

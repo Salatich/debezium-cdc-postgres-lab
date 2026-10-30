@@ -15,6 +15,7 @@ from debezium_cdc_postgres_lab.db import (
     get_replication_slot_metrics,
     seed_records,
     send_signaling_snapshot,
+    stream_traffic_generator,
     update_customer_status,
 )
 
@@ -36,9 +37,7 @@ def info() -> None:
     """Display environment status and lab scenarios."""
     console.print("[bold green]Debezium CDC PostgreSQL Lab[/bold green]")
     console.print("Python 3.13 + uv + Debezium 2.7 + Kafka KRaft + Schema Registry")
-    console.print(
-        "Run [bold cyan]uv run python scripts/verify_infra.py[/bold cyan] to verify services."
-    )
+    console.print("Run [bold cyan]uv run python scripts/verify_infra.py[/bold cyan] to verify services.")
 
 
 @connector_app.command("deploy")
@@ -47,9 +46,7 @@ def connector_deploy(config_path: str = "connectors/postgres-debezium-connector.
     client = ConnectorClient()
     try:
         res = client.deploy(config_path)
-        console.print(
-            f"[bold green]Connector deployed/updated successfully![/bold green] Response: {res}"
-        )
+        console.print(f"[bold green]Connector deployed/updated successfully![/bold green] Response: {res}")
     except Exception as e:
         console.print(f"[bold red]Deployment failed:[/bold red] {e}")
         raise typer.Exit(code=1)
@@ -74,9 +71,7 @@ def connector_status() -> None:
             for t in tasks:
                 t_state = t.get("state", "UNKNOWN")
                 t_color = "green" if t_state == "RUNNING" else "red"
-                table.add_row(
-                    str(t.get("id")), f"[{t_color}]{t_state}[/{t_color}]", str(t.get("worker_id"))
-                )
+                table.add_row(str(t.get("id")), f"[{t_color}]{t_state}[/{t_color}]", str(t.get("worker_id")))
             console.print(table)
     except Exception as e:
         console.print(f"[bold red]Failed to get connector status:[/bold red] {e}")
@@ -108,9 +103,7 @@ def update(customer_id: Optional[int] = None) -> None:
     """Update a customer to trigger an UPDATE ('u') event."""
     res = update_customer_status(customer_id)
     if res:
-        console.print(
-            f"[bold yellow]Customer updated:[/bold yellow] ID={res['id']}, Name={res['name']}, Status={res['old_status']} -> {res['new_status']}"
-        )
+        console.print(f"[bold yellow]Customer updated:[/bold yellow] ID={res['id']}, Name={res['name']}, Status={res['old_status']} -> {res['new_status']}")
     else:
         console.print("[red]No customers found to update.[/red]")
 
@@ -120,11 +113,21 @@ def delete(customer_id: Optional[int] = None) -> None:
     """Delete a customer to trigger a DELETE ('d') event and Tombstone."""
     res = delete_customer(customer_id)
     if res:
-        console.print(
-            f"[bold red]Customer deleted:[/bold red] ID={res['deleted_id']} ({res['name']})"
-        )
+        console.print(f"[bold red]Customer deleted:[/bold red] ID={res['deleted_id']} ({res['name']})")
     else:
         console.print("[red]No customers found to delete.[/red]")
+
+
+@app.command("stream")
+def stream(rate: float = 2.0, max_events: Optional[int] = None) -> None:
+    """Continuously stream randomized transactions into PostgreSQL to view live CDC throughput in Kafka UI."""
+    console.print(f"[bold green]Starting live traffic stream at {rate} tx/sec...[/bold green]")
+    console.print("[dim]Press Ctrl+C to stop. Watch http://localhost:8080 for real-time messages![/dim]\n")
+    try:
+        for event in stream_traffic_generator(rate_per_sec=rate, max_events=max_events):
+            console.print(f"  [cyan]➔[/cyan] {event}")
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Traffic generator stopped.[/yellow]")
 
 
 @app.command("consume")
@@ -145,9 +148,7 @@ def slots() -> None:
         console.print("[yellow]No replication slots found in PostgreSQL.[/yellow]")
         return
 
-    table = Table(
-        title="PostgreSQL Logical Replication Slots (pg_replication_slots)", border_style="cyan"
-    )
+    table = Table(title="PostgreSQL Logical Replication Slots (pg_replication_slots)", border_style="cyan")
     table.add_column("Slot Name", style="bold")
     table.add_column("Plugin", style="cyan")
     table.add_column("Active", style="white")
@@ -176,9 +177,7 @@ def slots() -> None:
 def snapshot(table: str = "public.customers") -> None:
     """Trigger an ad-hoc incremental snapshot via Debezium signaling table."""
     sig_id = send_signaling_snapshot(table)
-    console.print(
-        f"[bold green]Incremental snapshot signal sent![/bold green] Signal ID: [cyan]{sig_id}[/cyan] for table [bold]{table}[/bold]"
-    )
+    console.print(f"[bold green]Incremental snapshot signal sent![/bold green] Signal ID: [cyan]{sig_id}[/cyan] for table [bold]{table}[/bold]")
 
 
 @schema_app.command("add-col")

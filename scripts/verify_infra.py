@@ -7,6 +7,11 @@ import urllib.request
 
 from dotenv import load_dotenv
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 load_dotenv()
 
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
@@ -22,9 +27,7 @@ KAFKA_UI_URL = os.getenv("KAFKA_UI_URL", "http://localhost:8080")
 
 
 def check_postgres() -> bool:
-    print(
-        f"[*] Checking PostgreSQL connectivity on {POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}..."
-    )
+    print(f"[*] Checking PostgreSQL connectivity on {POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}...")
     try:
         import psycopg
 
@@ -37,9 +40,7 @@ def check_postgres() -> bool:
                 if wal_level != "logical":
                     print("    [!] WARNING: wal_level is not 'logical'. CDC replication will fail!")
                     return False
-                cur.execute(
-                    "SELECT count(*) FROM pg_publication WHERE pubname = 'dbz_publication';"
-                )
+                cur.execute("SELECT count(*) FROM pg_publication WHERE pubname = 'dbz_publication';")
                 has_pub = cur.fetchone()[0] > 0
                 print(f"    [+] Publication 'dbz_publication' configured: {has_pub}")
         return True
@@ -109,7 +110,7 @@ def check_kafka_ui() -> bool:
 
 def main():
     print("=" * 60)
-    print("🔍 DEBEZIUM CDC INFRASTRUCTURE HEALTH CHECK")
+    print("[*] DEBEZIUM CDC INFRASTRUCTURE HEALTH CHECK")
     print("=" * 60)
 
     results = {
@@ -123,14 +124,14 @@ def main():
     print("-" * 60)
     all_ok = all(results.values())
     for svc, ok in results.items():
-        status_icon = "✅ ONLINE" if ok else "❌ OFFLINE"
+        status_icon = "[OK] ONLINE" if ok else "[X]  OFFLINE"
         print(f"{svc:40} {status_icon}")
     print("=" * 60)
     if not all_ok:
-        print("💡 Hint: Ensure Docker Desktop is running and execute: docker compose up -d")
+        print("Hint: Ensure Docker Desktop is running and execute: docker compose up -d")
         sys.exit(1)
     else:
-        print("🚀 All infrastructure components are healthy and ready!")
+        print("All infrastructure components are healthy and ready!")
 
 
 if __name__ == "__main__":
